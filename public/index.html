@@ -1,3 +1,4 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -26,37 +27,57 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        let player = { x: 100, y: 100, size: 30, color: 'blue' };
-        let players = {};
+        // Local player data
+        let player = { x: 100, y: 100, size: 30, color: 'green' };
+        const players = {}; // Other players data
 
-        // Smoother movement settings
-        const speed = 5;
-        let targetX = player.x;
-        let targetY = player.y;
+        // Movement variables
+        const speed = 3; // Adjust speed for smoothness
+        let velocityX = 0;
+        let velocityY = 0;
+        const keysPressed = { w: false, a: false, s: false, d: false };
 
-        // Listen for player movement
+        // Update velocity based on keys pressed
+        function updateVelocity() {
+            velocityX = 0;
+            velocityY = 0;
+            if (keysPressed['w']) velocityY -= speed;
+            if (keysPressed['s']) velocityY += speed;
+            if (keysPressed['a']) velocityX -= speed;
+            if (keysPressed['d']) velocityX += speed;
+        }
+
+        // Handle keydown and keyup for smoother diagonal movement
         window.addEventListener('keydown', (e) => {
-            if (e.key === 'w') targetY -= speed;
-            if (e.key === 's') targetY += speed;
-            if (e.key === 'a') targetX -= speed;
-            if (e.key === 'd') targetX += speed;
-            socket.emit('playerMove', { x: targetX, y: targetY });
+            if (e.key in keysPressed) {
+                keysPressed[e.key] = true;
+                updateVelocity();
+            }
         });
 
-        // Render loop for smooth movement
+        window.addEventListener('keyup', (e) => {
+            if (e.key in keysPressed) {
+                keysPressed[e.key] = false;
+                updateVelocity();
+            }
+        });
+
+        // Render function for the game loop
         function render() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height); // clear canvas to prevent trail
-           
-            // Smoothly interpolate towards the target position
-            player.x += (targetX - player.x) * 0.1;
-            player.y += (targetY - player.y) * 0.1;
-           
-            // Draw the local player
+            // Update position with smooth interpolation
+            player.x += velocityX;
+            player.y += velocityY;
+
+            // Send updated position to server
+            socket.emit('playerMovement', { x: player.x, y: player.y });
+
+            // Clear canvas and draw the local player
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.size, player.size);
 
             // Draw other players
-            for (let id in players) {
+            for (const id in players) {
                 const p = players[id];
                 ctx.fillStyle = p.color;
                 ctx.fillRect(p.x, p.y, p.size, p.size);
@@ -65,11 +86,27 @@
             requestAnimationFrame(render);
         }
 
-        // Sync players from server
-        socket.on('updatePlayer', (data) => {
+        // Sync with server data
+        socket.on('currentPlayers', (data) => {
             players = data;
         });
 
+        socket.on('newPlayer', (data) => {
+            players[data.id] = { x: data.x, y: data.y, size: 30, color: 'blue' };
+        });
+
+        socket.on('playerMoved', (data) => {
+            if (players[data.id]) {
+                players[data.id].x = data.x;
+                players[data.id].y = data.y;
+            }
+        });
+
+        socket.on('removePlayer', (id) => {
+            delete players[id];
+        });
+
+        // Initialize rendering loop
         render();
     </script>
 </body>
