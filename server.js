@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -7,31 +6,42 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-let rooms = {};
+let players = {};
 
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html');
-});
+app.use(express.static('public')); // Serve the static files (like HTML, JS, CSS)
 
 io.on('connection', (socket) => {
-    console.log('A user connected');
+    console.log(`Player connected: ${socket.id}`);
 
-    socket.on('joinRoom', (roomCode, nickname) => {
-        if (!rooms[roomCode]) rooms[roomCode] = [];
-        rooms[roomCode].push({ id: socket.id, nickname });
-        socket.join(roomCode);
-        io.to(roomCode).emit('playerJoined', nickname);
+    // Create a new player and store their position
+    players[socket.id] = {
+        x: Math.random() * 800,  // Random initial position
+        y: Math.random() * 600   // Random initial position
+    };
+
+    // Emit the player list to the new player
+    socket.emit('currentPlayers', players);
+
+    // Broadcast new player to all other clients
+    socket.broadcast.emit('newPlayer', { id: socket.id, x: players[socket.id].x, y: players[socket.id].y });
+
+    // Handle player movement
+    socket.on('playerMovement', (movementData) => {
+        if (players[socket.id]) {
+            players[socket.id].x = movementData.x;
+            players[socket.id].y = movementData.y;
+        }
+        io.emit('playerMoved', { id: socket.id, x: players[socket.id].x, y: players[socket.id].y });
     });
 
-    socket.on('playerMove', (roomCode, playerData) => {
-        io.to(roomCode).emit('updatePlayer', playerData);
-    });
-
+    // Handle disconnection
     socket.on('disconnect', () => {
-        console.log('A user disconnected');
+        console.log(`Player disconnected: ${socket.id}`);
+        delete players[socket.id];
+        io.emit('removePlayer', socket.id);
     });
 });
 
 server.listen(3000, () => {
-    console.log('Server is running on port 3000');
+    console.log('Server running on port 3000');
 });
