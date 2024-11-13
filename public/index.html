@@ -75,10 +75,14 @@
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.size, player.size);
 
-            // Draw other players
+            // Draw other players with interpolation
             for (const id in players) {
                 const p = players[id];
-                if (id !== socket.id) {
+                if (id !== socket.id) { // Don't render your own player (green)
+                    // Interpolate position towards target position
+                    p.x += (p.targetX - p.x) * 0.1; // Adjust the 0.1 for smoother/faster interpolation
+                    p.y += (p.targetY - p.y) * 0.1;
+
                     ctx.fillStyle = p.color;
                     ctx.fillRect(p.x, p.y, p.size, p.size);
                 }
@@ -89,22 +93,28 @@
 
         // Sync with server data
         socket.on('currentPlayers', (data) => {
+            // Merge the current players with the new ones
             Object.assign(players, data);
+            for (const id in players) {
+                players[id].targetX = players[id].x;
+                players[id].targetY = players[id].y;
+            }
         });
 
         socket.on('newPlayer', (data) => {
-            players[data.id] = { x: data.x, y: data.y, size: 30, color: 'blue' };
+            players[data.id] = { x: data.x, y: data.y, targetX: data.x, targetY: data.y, size: 30, color: 'blue' }; // Add new player
         });
 
         socket.on('playerMoved', (data) => {
             if (players[data.id]) {
-                players[data.id].x = data.x;
-                players[data.id].y = data.y;
+                // Set target positions instead of immediate positions
+                players[data.id].targetX = data.x;
+                players[data.id].targetY = data.y;
             }
         });
 
         socket.on('removePlayer', (id) => {
-            delete players[id];
+            delete players[id]; // Remove disconnected player
         });
 
         // Initialize rendering loop
