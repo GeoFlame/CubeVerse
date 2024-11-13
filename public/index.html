@@ -1,4 +1,3 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -88,11 +87,12 @@
 
         // Sync with server data
         socket.on('currentPlayers', (data) => {
-            players = data;
+            // Merge the current players with the new ones
+            Object.assign(players, data);
         });
 
         socket.on('newPlayer', (data) => {
-            players[data.id] = { x: data.x, y: data.y, size: 30, color: 'blue' };
+            players[data.id] = { x: data.x, y: data.y, size: 30, color: 'blue' }; // Add new player
         });
 
         socket.on('playerMoved', (data) => {
@@ -103,7 +103,7 @@
         });
 
         socket.on('removePlayer', (id) => {
-            delete players[id];
+            delete players[id]; // Remove disconnected player
         });
 
         // Initialize rendering loop
