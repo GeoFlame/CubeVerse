@@ -1,3 +1,5 @@
+// Server-side code (Node.js with Express + Socket.io)
+
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -6,14 +8,14 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-let players = {};
+let players = {}; // Store players
 
 app.use(express.static('public')); // Serve the static files (like HTML, JS, CSS)
 
 io.on('connection', (socket) => {
     console.log(`Player connected: ${socket.id}`);
     
-    // Initialize new player
+    // Initialize new player with random position
     players[socket.id] = { x: Math.random() * 800, y: Math.random() * 600, size: 30, color: 'blue' };
 
     // Send current player list to the new player
