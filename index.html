@@ -1,0 +1,64 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CubeVerse</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #f5f5f5;
+        }
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let player = { x: 100, y: 100, size: 30, color: 'blue' };
+        let players = [];
+
+        // Player movement
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'w') player.y -= 5;
+            if (e.key === 's') player.y += 5;
+            if (e.key === 'a') player.x -= 5;
+            if (e.key === 'd') player.x += 5;
+            socket.emit('playerMove', { x: player.x, y: player.y });
+        });
+
+        // Render players
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.size, player.size);
+
+            players.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+            });
+
+            requestAnimationFrame(render);
+        }
+
+        // Sync players
+        socket.on('updatePlayer', (data) => {
+            players = data;
+        });
+
+        render();
+    </script>
+</body>
+</html>
