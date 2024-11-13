@@ -1,4 +1,3 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -27,63 +26,50 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // Local player info
-        let player = { x: 100, y: 100, size: 30, color: 'green' };
-        const players = {}; // Store all players in an object
+        let player = { x: 100, y: 100, size: 30, color: 'blue' };
+        let players = {};
 
-        // Player movement
+        // Smoother movement settings
+        const speed = 5;
+        let targetX = player.x;
+        let targetY = player.y;
+
+        // Listen for player movement
         window.addEventListener('keydown', (e) => {
-            if (e.key === 'w') player.y -= 5;
-            if (e.key === 's') player.y += 5;
-            if (e.key === 'a') player.x -= 5;
-            if (e.key === 'd') player.x += 5;
-
-            // Emit player movement to server
-            socket.emit('playerMovement', { x: player.x, y: player.y });
+            if (e.key === 'w') targetY -= speed;
+            if (e.key === 's') targetY += speed;
+            if (e.key === 'a') targetX -= speed;
+            if (e.key === 'd') targetX += speed;
+            socket.emit('playerMove', { x: targetX, y: targetY });
         });
 
-        // Render all players on the canvas
+        // Render loop for smooth movement
         function render() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
-
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // clear canvas to prevent trail
+           
+            // Smoothly interpolate towards the target position
+            player.x += (targetX - player.x) * 0.1;
+            player.y += (targetY - player.y) * 0.1;
+           
             // Draw the local player
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.size, player.size);
 
             // Draw other players
-            for (const id in players) {
+            for (let id in players) {
                 const p = players[id];
                 ctx.fillStyle = p.color;
                 ctx.fillRect(p.x, p.y, p.size, p.size);
             }
 
-            requestAnimationFrame(render); // Keep rendering
+            requestAnimationFrame(render);
         }
 
-        // Listen for updates from the server
-        socket.on('currentPlayers', (data) => {
-            // Initialize all players when the game starts
-            for (const id in data) {
-                players[id] = data[id];
-            }
+        // Sync players from server
+        socket.on('updatePlayer', (data) => {
+            players = data;
         });
 
-        // Handle new player joining
-        socket.on('newPlayer', (data) => {
-            players[data.id] = { x: data.x, y: data.y, size: 30, color: 'blue' };
-        });
-
-        // Handle player movement update from server
-        socket.on('playerMoved', (data) => {
-            players[data.id] = { ...players[data.id], x: data.x, y: data.y };
-        });
-
-        // Remove disconnected players
-        socket.on('removePlayer', (id) => {
-            delete players[id];
-        });
-
-        // Initialize and start rendering
         render();
     </script>
 </body>
