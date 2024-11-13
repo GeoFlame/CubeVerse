@@ -16,7 +16,7 @@ io.on('connection', (socket) => {
     console.log(`Player connected: ${socket.id}`);
     
     // Initialize new player with random position
-    players[socket.id] = { x: Math.random() * 800, y: Math.random() * 600, size: 30, color: 'blue' };
+    players[socket.id] = { x: Math.random() * 600, y: Math.random() * 400, size: 30, color: 'blue' };
 
     // Send current player list to the new player
     socket.emit('currentPlayers', players);
