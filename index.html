@@ -27,8 +27,9 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        let player = { x: 100, y: 100, size: 30, color: 'blue' };
-        let players = [];
+        // Local player info
+        let player = { x: 100, y: 100, size: 30, color: 'green' };
+        const players = {}; // Store all players in an object
 
         // Player movement
         window.addEventListener('keydown', (e) => {
@@ -36,28 +37,53 @@
             if (e.key === 's') player.y += 5;
             if (e.key === 'a') player.x -= 5;
             if (e.key === 'd') player.x += 5;
-            socket.emit('playerMove', { x: player.x, y: player.y });
+
+            // Emit player movement to server
+            socket.emit('playerMovement', { x: player.x, y: player.y });
         });
 
-        // Render players
+        // Render all players on the canvas
         function render() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
+
+            // Draw the local player
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.size, player.size);
 
-            players.forEach(p => {
+            // Draw other players
+            for (const id in players) {
+                const p = players[id];
                 ctx.fillStyle = p.color;
                 ctx.fillRect(p.x, p.y, p.size, p.size);
-            });
+            }
 
-            requestAnimationFrame(render);
+            requestAnimationFrame(render); // Keep rendering
         }
 
-        // Sync players
-        socket.on('updatePlayer', (data) => {
-            players = data;
+        // Listen for updates from the server
+        socket.on('currentPlayers', (data) => {
+            // Initialize all players when the game starts
+            for (const id in data) {
+                players[id] = data[id];
+            }
         });
 
+        // Handle new player joining
+        socket.on('newPlayer', (data) => {
+            players[data.id] = { x: data.x, y: data.y, size: 30, color: 'blue' };
+        });
+
+        // Handle player movement update from server
+        socket.on('playerMoved', (data) => {
+            players[data.id] = { ...players[data.id], x: data.x, y: data.y };
+        });
+
+        // Remove disconnected players
+        socket.on('removePlayer', (id) => {
+            delete players[id];
+        });
+
+        // Initialize and start rendering
         render();
     </script>
 </body>
