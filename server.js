@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -6,39 +7,47 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-let players = {};
+const PORT = 3000;
 
-app.use(express.static('public')); // Serve the static files (like HTML, JS, CSS)
+// Serve static files (index.html, etc.)
+app.use(express.static(__dirname));
+
+// Store player data
+const players = {};
 
 io.on('connection', (socket) => {
-    console.log(`Player connected: ${socket.id}`);
+    console.log('New player connected:', socket.id);
     
-    // Initialize new player
-    players[socket.id] = { x: Math.random() * 800, y: Math.random() * 600, size: 30, color: 'blue' };
+    // Create a new player and add to players object
+    players[socket.id] = { x: 100, y: 100, size: 30, color: 'blue' };
 
-    // Send current player list to the new player
-    socket.emit('currentPlayers', players);
+    // Send the player list to the newly connected player
+    socket.emit('updatePlayer', players);
 
-    // Notify other players about the new player
-    socket.broadcast.emit('newPlayer', { id: socket.id, x: players[socket.id].x, y: players[socket.id].y });
-
-    // Handle player movement
-    socket.on('playerMovement', (movementData) => {
+    // Listen for player movement
+    socket.on('playerMove', (position) => {
         if (players[socket.id]) {
-            players[socket.id].x = movementData.x;
-            players[socket.id].y = movementData.y;
-            io.emit('playerMoved', { id: socket.id, x: players[socket.id].x, y: players[socket.id].y });
+            // Update player position
+            players[socket.id].x = position.x;
+            players[socket.id].y = position.y;
+            
+            // Broadcast updated player data to all clients
+            io.emit('updatePlayer', players);
         }
     });
 
-    // Handle disconnection
+    // Handle player disconnection
     socket.on('disconnect', () => {
-        console.log(`Player disconnected: ${socket.id}`);
+        console.log('Player disconnected:', socket.id);
+        
+        // Remove player from list
         delete players[socket.id];
-        io.emit('removePlayer', socket.id);
+        
+        // Notify all clients to update their player list
+        io.emit('updatePlayer', players);
     });
 });
 
-server.listen(3000, () => {
-    console.log('Server running on port 3000');
+server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
