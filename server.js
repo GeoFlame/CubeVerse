@@ -12,17 +12,14 @@ app.use(express.static('public')); // Serve the static files (like HTML, JS, CSS
 
 io.on('connection', (socket) => {
     console.log(`Player connected: ${socket.id}`);
+    
+    // Initialize new player
+    players[socket.id] = { x: Math.random() * 800, y: Math.random() * 600, size: 30, color: 'blue' };
 
-    // Create a new player and store their position
-    players[socket.id] = {
-        x: Math.random() * 800,  // Random initial position
-        y: Math.random() * 600   // Random initial position
-    };
-
-    // Emit the player list to the new player
+    // Send current player list to the new player
     socket.emit('currentPlayers', players);
 
-    // Broadcast new player to all other clients
+    // Notify other players about the new player
     socket.broadcast.emit('newPlayer', { id: socket.id, x: players[socket.id].x, y: players[socket.id].y });
 
     // Handle player movement
@@ -30,8 +27,8 @@ io.on('connection', (socket) => {
         if (players[socket.id]) {
             players[socket.id].x = movementData.x;
             players[socket.id].y = movementData.y;
+            io.emit('playerMoved', { id: socket.id, x: players[socket.id].x, y: players[socket.id].y });
         }
-        io.emit('playerMoved', { id: socket.id, x: players[socket.id].x, y: players[socket.id].y });
     });
 
     // Handle disconnection
