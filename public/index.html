@@ -20,10 +20,10 @@
         const player = { x: 100, y: 100, size: 30, color: 'green', health: 100 };
         const players = {}; // Other players
         const bullets = [];
-        const speed = 6; // Increased speed
+        const speed = 4; // Slower speed for control
         let velocityX = 0, velocityY = 0;
         let slidingVelocityX = 0, slidingVelocityY = 0;
-        const friction = 0.9; // Friction for sliding
+        const friction = 0.98; // Less sliding friction for smooth but slower sliding
         const keysPressed = { w: false, a: false, s: false, d: false };
 
         function updateVelocity() {
@@ -57,6 +57,7 @@
             socket.emit('shootBullet', { x: player.x, y: player.y });
         });
 
+        // Random spawn position for player
         function randomSpawn() {
             player.x = Math.random() * (canvas.width - player.size);
             player.y = Math.random() * (canvas.height - player.size);
@@ -78,7 +79,7 @@
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.size, player.size);
 
-            // Draw health bar
+            // Draw health bar for player
             ctx.fillStyle = 'red';
             ctx.fillRect(player.x, player.y - 10, player.size, 5);
             ctx.fillStyle = 'green';
@@ -87,6 +88,7 @@
             // Draw other players
             for (const id in players) {
                 const p = players[id];
+                if (id === socket.id) continue; // Skip self player
                 ctx.fillStyle = p.color;
                 ctx.fillRect(p.x, p.y, p.size, p.size);
 
