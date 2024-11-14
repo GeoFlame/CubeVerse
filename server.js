@@ -8,39 +8,65 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-let players = {}; // Store players
+let players = {};
 
-app.use(express.static('public')); // Serve the static files (like HTML, JS, CSS)
+app.use(express.static('public'));
 
 io.on('connection', (socket) => {
-    console.log(`Player connected: ${socket.id}`);
-    
-    // Initialize new player with random position
-    players[socket.id] = { x: Math.random() * 800, y: Math.random() * 600, size: 30, color: 'blue' };
+    console.log('a user connected');
+    players[socket.id] = { id: socket.id, name: '', x: 100, y: 100, color: 'green', lastActive: Date.now() };
 
-    // Send current player list to the new player
-    socket.emit('currentPlayers', players);
+    // Send current players to the new player
+    io.to(socket.id).emit('currentPlayers', players);
 
-    // Notify other players about the new player
-    socket.broadcast.emit('newPlayer', { id: socket.id, x: players[socket.id].x, y: players[socket.id].y });
+    // New player joined
+    socket.on('joinGame', (data) => {
+        players[socket.id].name = data.name;
+        players[socket.id].color = data.color;
+        io.emit('newPlayer', { id: socket.id, x: players[socket.id].x, y: players[socket.id].y, color: data.color, name: data.name });
+    });
 
-    // Handle player movement
-    socket.on('playerMovement', (movementData) => {
-        if (players[socket.id]) {
-            players[socket.id].x = movementData.x;
-            players[socket.id].y = movementData.y;
-            io.emit('playerMoved', { id: socket.id, x: players[socket.id].x, y: players[socket.id].y });
+    // Player movement
+    socket.on('playerMovement', (data) => {
+        players[socket.id].x = data.x;
+        players[socket.id].y = data.y;
+        players[socket.id].lastActive = Date.now(); // Update last active time on movement
+        socket.broadcast.emit('playerMoved', { id: socket.id, x: data.x, y: data.y });
+    });
+
+    // Chat message
+    socket.on('chatMessage', (message) => {
+        io.emit('chatMessage', `${players[socket.id].name}: ${message}`);
+    });
+
+    // Kick player manually
+    socket.on('kickPlayer', (data) => {
+        const playerToKick = Object.values(players).find(player => player.name === data.id);
+        if (playerToKick) {
+            io.to(playerToKick.id).emit('kicked');
+            delete players[playerToKick.id];
+            io.emit('removePlayer', playerToKick.id);
         }
     });
 
-    // Handle disconnection
+    // Check AFK status every 10 seconds
+    setInterval(() => {
+        for (const id in players) {
+            if (Date.now() - players[id].lastActive > 120000) { // 2 minutes
+                io.to(players[id].id).emit('kicked');
+                delete players[id];
+                io.emit('removePlayer', id);
+            }
+        }
+    }, 10000);
+
     socket.on('disconnect', () => {
-        console.log(`Player disconnected: ${socket.id}`);
+        console.log('user disconnected');
         delete players[socket.id];
         io.emit('removePlayer', socket.id);
     });
 });
 
 server.listen(3000, () => {
-    console.log('Server running on port 3000');
+    console.log('listening on *:3000');
 });
