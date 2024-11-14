@@ -8,25 +8,18 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-let players = {};
-
-app.use(express.static('public'));
+let players = {}; // Store players info
 
 io.on('connection', (socket) => {
     console.log('a user connected');
     players[socket.id] = { id: socket.id, name: '', x: 100, y: 100, color: 'green', lastActive: Date.now() };
 
-    // Send current players to the new player
-    io.to(socket.id).emit('currentPlayers', players);
-
-    // New player joined
     socket.on('joinGame', (data) => {
         players[socket.id].name = data.name;
         players[socket.id].color = data.color;
         io.emit('newPlayer', { id: socket.id, x: players[socket.id].x, y: players[socket.id].y, color: data.color, name: data.name });
     });
 
-    // Player movement
     socket.on('playerMovement', (data) => {
         players[socket.id].x = data.x;
         players[socket.id].y = data.y;
@@ -34,12 +27,10 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('playerMoved', { id: socket.id, x: data.x, y: data.y });
     });
 
-    // Chat message
     socket.on('chatMessage', (message) => {
         io.emit('chatMessage', `${players[socket.id].name}: ${message}`);
     });
 
-    // Kick player manually
     socket.on('kickPlayer', (data) => {
         const playerToKick = Object.values(players).find(player => player.name === data.id);
         if (playerToKick) {
