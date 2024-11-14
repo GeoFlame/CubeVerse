@@ -17,28 +17,36 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        const player = { x: 100, y: 100, size: 30, color: 'green', health: 100, rotation: 0 };
+        const player = { x: 100, y: 100, size: 30, color: 'green', health: 100 };
         const players = {}; // Other players
-        const bullets = []; // Bullets array (from server)
-        const speed = 3;
+        const bullets = [];
+        const speed = 6; // Increased speed
         let velocityX = 0, velocityY = 0;
+        let slidingVelocityX = 0, slidingVelocityY = 0;
+        const friction = 0.9; // Friction for sliding
         const keysPressed = { w: false, a: false, s: false, d: false };
 
         function updateVelocity() {
-            velocityX = 0; velocityY = 0;
-            if (keysPressed['w']) velocityY -= speed;
-            if (keysPressed['s']) velocityY += speed;
-            if (keysPressed['a']) velocityX -= speed;
-            if (keysPressed['d']) velocityX += speed;
+            let targetVelocityX = 0;
+            let targetVelocityY = 0;
+            if (keysPressed['w']) targetVelocityY -= speed;
+            if (keysPressed['s']) targetVelocityY += speed;
+            if (keysPressed['a']) targetVelocityX -= speed;
+            if (keysPressed['d']) targetVelocityX += speed;
+
+            velocityX = targetVelocityX;
+            velocityY = targetVelocityY;
         }
 
-        // Rotation to face mouse
-        canvas.addEventListener('mousemove', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-            player.rotation = Math.atan2(mouseY - player.y, mouseX - player.x);
-        });
+        // Apply friction for sliding effect
+        function applySliding() {
+            slidingVelocityX += velocityX;
+            slidingVelocityY += velocityY;
+            slidingVelocityX *= friction;
+            slidingVelocityY *= friction;
+            player.x += slidingVelocityX;
+            player.y += slidingVelocityY;
+        }
 
         // Movement controls
         window.addEventListener('keydown', (e) => { if (e.key in keysPressed) { keysPressed[e.key] = true; updateVelocity(); } });
@@ -46,7 +54,7 @@
 
         // Fire bullet
         window.addEventListener('click', () => {
-            socket.emit('shootBullet', { x: player.x, y: player.y, angle: player.rotation });
+            socket.emit('shootBullet', { x: player.x, y: player.y });
         });
 
         function randomSpawn() {
@@ -57,7 +65,7 @@
 
         // Send movement data to the server
         function movePlayer() {
-            socket.emit('playerMovement', { velocityX, velocityY, rotation: player.rotation });
+            socket.emit('playerMovement', { x: player.x, y: player.y });
         }
 
         setInterval(movePlayer, 16);
@@ -67,12 +75,8 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             // Draw player
-            ctx.save();
-            ctx.translate(player.x + player.size / 2, player.y + player.size / 2);
-            ctx.rotate(player.rotation);
             ctx.fillStyle = player.color;
-            ctx.fillRect(-player.size / 2, -player.size / 2, player.size, player.size);
-            ctx.restore();
+            ctx.fillRect(player.x, player.y, player.size, player.size);
 
             // Draw health bar
             ctx.fillStyle = 'red';
@@ -83,12 +87,8 @@
             // Draw other players
             for (const id in players) {
                 const p = players[id];
-                ctx.save();
-                ctx.translate(p.x + p.size / 2, p.y + p.size / 2);
-                ctx.rotate(p.rotation);
                 ctx.fillStyle = p.color;
-                ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
-                ctx.restore();
+                ctx.fillRect(p.x, p.y, p.size, p.size);
 
                 // Draw health bar
                 ctx.fillStyle = 'red';
@@ -114,7 +114,11 @@
             bullets.push(...data.bullets);
         });
 
-        render();
+        function gameLoop() {
+            applySliding();
+            render();
+        }
+        setInterval(gameLoop, 16);
     </script>
 </body>
 </html>
