@@ -41,13 +41,14 @@ io.on('connection', (socket) => {
 
     // Kick player manually
     socket.on('kickPlayer', (data) => {
-        const playerToKick = Object.values(players).find(player => player.name === data.id);
+        const playerToKick = Object.values(players).find(player => player.name === data.targetName);
         if (playerToKick) {
             io.to(playerToKick.id).emit('kicked');
             delete players[playerToKick.id];
             io.emit('removePlayer', playerToKick.id);
         }
     });
+
 
     // Check AFK status every 10 seconds
     setInterval(() => {
@@ -65,16 +66,6 @@ io.on('connection', (socket) => {
         delete players[socket.id];
         io.emit('removePlayer', socket.id);
     });
-});
-
-// Admin kicks a player by name
-socket.on('kickPlayer', (data) => {
-    const playerToKick = Object.values(players).find(player => player.name === data.targetName);
-    if (playerToKick) {
-        io.to(playerToKick.id).emit('kicked');
-        delete players[playerToKick.id];
-        io.emit('removePlayer', playerToKick.id);
-    }
 });
 
 
