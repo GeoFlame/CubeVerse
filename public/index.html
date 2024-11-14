@@ -145,6 +145,7 @@
             }
         });
 
+
         window.addEventListener('keyup', (e) => {
             if (e.key in keysPressed) {
                 keysPressed[e.key] = false;
@@ -186,10 +187,17 @@
         // Chat system
         chatInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && chatInput.value.trim()) {
-                socket.emit('chatMessage', chatInput.value);
+                if (chatInput.value.startsWith('/kick ')) {
+                    // Command starts with /kick
+                    const targetName = chatInput.value.slice(6).trim(); // Get the name of the player to kick
+                    socket.emit('kickPlayer', { targetName });
+                } else {
+                    socket.emit('chatMessage', chatInput.value);  // Normal chat message
+                }
                 chatInput.value = ''; // Clear the input after sending
             }
         });
+
 
         socket.on('chatMessage', (message) => {
             const messageElement = document.createElement('div');
