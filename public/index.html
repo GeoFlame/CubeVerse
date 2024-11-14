@@ -16,22 +16,94 @@
         canvas {
             border: 1px solid black;
         }
+
+        /* Start screen styles */
+        #startScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        input, button {
+            padding: 10px;
+            margin: 10px;
+            font-size: 16px;
+        }
+
+        #chatBox {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 200px;
+            height: 150px;
+            overflow-y: scroll;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 10px;
+        }
+
+        #kickMessage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: red;
+            font-weight: bold;
+            display: none;
+        }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas" width="600" height="400"></canvas>
+
+    <!-- Start screen -->
+    <div id="startScreen">
+        <h1>CubeVerse</h1>
+        <input type="text" id="playerName" placeholder="Enter your name" /><br>
+        <input type="color" id="cubeColor" value="#00FF00" /><br>
+        <button id="startButton">Start Game</button>
+    </div>
+
+    <!-- Chat box -->
+    <div id="chatBox"></div>
+    <input type="text" id="chatInput" placeholder="Type a message" style="position: absolute; bottom: 40px; left: 20px; width: 200px;" />
+
+    <!-- Kick message -->
+    <div id="kickMessage">You have been kicked from the game!</div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('startScreen');
+        const playerNameInput = document.getElementById('playerName');
+        const playerColorInput = document.getElementById('cubeColor');
+        const startButton = document.getElementById('startButton');
+        const chatBox = document.getElementById('chatBox');
+        const chatInput = document.getElementById('chatInput');
+        const kickMessage = document.getElementById('kickMessage');
 
-        // Local player data
-        let player = { x: 100, y: 100, size: 30, color: 'green' };
-        const players = {}; // Other players data
+        let player = { x: 100, y: 100, size: 30, color: 'green', name: 'Player' };
+        const players = {};
+        let gameStarted = false;
+        let lastMovementTime = Date.now(); // Track last movement time
+
+        // Hide start screen and start the game
+        startButton.addEventListener('click', () => {
+            player.name = playerNameInput.value || 'Player';
+            player.color = playerColorInput.value;
+            startScreen.style.display = 'none';
+            gameStarted = true;
+            socket.emit('joinGame', { name: player.name, color: player.color });
+            render();
+        });
 
         // Movement variables
-        const speed = 5; // Adjust speed for smoothness
+        const speed = 5;
         let velocityX = 0;
         let velocityY = 0;
         const keysPressed = { w: false, a: false, s: false, d: false, 'ArrowLeft': false, 'ArrowUp': false, 'ArrowDown': false, 'ArrowRight': false };
@@ -50,11 +122,11 @@
             if (keysPressed['ArrowRight']) velocityX += speed;
         }
 
-        // Handle keydown and keyup for smoother diagonal movement
         window.addEventListener('keydown', (e) => {
             if (e.key in keysPressed) {
                 keysPressed[e.key] = true;
                 updateVelocity();
+                lastMovementTime = Date.now(); // Update the movement time on keypress
             }
         });
 
@@ -67,41 +139,56 @@
 
         // Render function for the game loop
         function render() {
-            // Update position with smooth interpolation
+            if (!gameStarted) return;
+
             player.x += velocityX;
             player.y += velocityY;
             player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
             player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
 
-            // Send updated position to server
             socket.emit('playerMovement', { x: player.x, y: player.y });
 
-            // Clear canvas and draw the local player
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.size, player.size);
 
-            // Draw other players
             for (const id in players) {
                 const p = players[id];
-                if (id !== socket.id) { // Don't render your own player (green)
-                    ctx.fillStyle = p.color;
-                    ctx.fillRect(p.x, p.y, p.size, p.size);
-                }
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
             }
 
-
             requestAnimationFrame(render);
+
+            // Check for AFK kick (2 minutes of no movement)
+            if (Date.now() - lastMovementTime > 120000) { // 2 minutes in ms
+                socket.emit('kickPlayer', { id: player.name });
+                kickMessage.style.display = 'block'; // Show the kick message
+                gameStarted = false; // Stop the game loop
+            }
         }
 
-        // Sync with server data
+        // Chat system
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && chatInput.value.trim()) {
+                socket.emit('chatMessage', chatInput.value);
+                chatInput.value = ''; // Clear the input after sending
+            }
+        });
+
+        socket.on('chatMessage', (message) => {
+            const messageElement = document.createElement('div');
+            messageElement.textContent = message;
+            chatBox.appendChild(messageElement);
+            chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll to the bottom
+        });
+
         socket.on('currentPlayers', (data) => {
-            // Merge the current players with the new ones
             Object.assign(players, data);
         });
 
         socket.on('newPlayer', (data) => {
-            players[data.id] = { x: data.x, y: data.y, size: 30, color: 'blue' }; // Add new player
+            players[data.id] = { x: data.x, y: data.y, size: 30, color: data.color, name: data.name };
         });
 
         socket.on('playerMoved', (data) => {
@@ -112,11 +199,13 @@
         });
 
         socket.on('removePlayer', (id) => {
-            delete players[id]; // Remove disconnected player
+            delete players[id];
         });
 
-        // Initialize rendering loop
-        render();
+        socket.on('kicked', () => {
+            kickMessage.style.display = 'block'; // Show the kick message
+            gameStarted = false; // Stop the game loop
+        });
     </script>
 </body>
 </html>
