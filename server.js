@@ -1,5 +1,3 @@
-// Server-side code (Node.js with Express + Socket.io)
-
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -21,22 +19,28 @@ io.on('connection', (socket) => {
 
     // New player joined
     socket.on('joinGame', (data) => {
-        players[socket.id].name = data.name;
-        players[socket.id].color = data.color;
-        io.emit('newPlayer', { id: socket.id, x: players[socket.id].x, y: players[socket.id].y, color: data.color, name: data.name });
+        if (players[socket.id]) { // Ensure player still exists
+            players[socket.id].name = data.name;
+            players[socket.id].color = data.color;
+            io.emit('newPlayer', { id: socket.id, x: players[socket.id].x, y: players[socket.id].y, color: data.color, name: data.name });
+        }
     });
 
     // Player movement
     socket.on('playerMovement', (data) => {
-        players[socket.id].x = data.x;
-        players[socket.id].y = data.y;
-        players[socket.id].lastActive = Date.now(); // Update last active time on movement
-        socket.broadcast.emit('playerMoved', { id: socket.id, x: data.x, y: data.y });
+        if (players[socket.id]) { // Ensure player still exists
+            players[socket.id].x = data.x;
+            players[socket.id].y = data.y;
+            players[socket.id].lastActive = Date.now(); // Update last active time on movement
+            socket.broadcast.emit('playerMoved', { id: socket.id, x: data.x, y: data.y });
+        }
     });
 
     // Chat message
     socket.on('chatMessage', (message) => {
-        io.emit('chatMessage', `${players[socket.id].name}: ${message}`);
+        if (players[socket.id]) { // Ensure player still exists
+            io.emit('chatMessage', `${players[socket.id].name}: ${message}`);
+        }
     });
 
     // Kick player manually
@@ -49,18 +53,6 @@ io.on('connection', (socket) => {
         }
     });
 
-
-    // Check AFK status every 10 seconds
-    setInterval(() => {
-        for (const id in players) {
-            if (Date.now() - players[id].lastActive > 120000) { // 2 minutes
-                io.to(players[id].id).emit('kicked');
-                delete players[id];
-                io.emit('removePlayer', id);
-            }
-        }
-    }, 10000);
-
     socket.on('disconnect', () => {
         console.log('user disconnected');
         delete players[socket.id];
@@ -68,6 +60,16 @@ io.on('connection', (socket) => {
     });
 });
 
+// Check AFK status every 10 seconds
+setInterval(() => {
+    for (const id in players) {
+        if (Date.now() - players[id].lastActive > 120000) { // 2 minutes
+            io.to(players[id].id).emit('kicked');
+            delete players[id];
+            io.emit('removePlayer', id);
+        }
+    }
+}, 10000);
 
 server.listen(3000, () => {
     console.log('listening on *:3000');
