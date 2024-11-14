@@ -8,7 +8,7 @@ const io = socketIo(server);
 
 let players = {};
 let bullets = [];
-const BULLET_SPEED = 8;
+const BULLET_SPEED = 5;
 const PLAYER_HEALTH = 100;
 const PLAYER_SIZE = 30;
 
@@ -71,7 +71,7 @@ io.on('connection', (socket) => {
 
     // Shoot bullet
     socket.on('shootBullet', (data) => {
-        const angle = Math.atan2(data.y - players[socket.id].y, data.x - players[socket.id].x);
+        const angle = Math.atan2(data.mouseY - data.y, data.mouseX - data.x);
         bullets.push({ x: data.x, y: data.y, angle, size: 5 });
     });
 
@@ -83,5 +83,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(3000, () => {
-    console.log('Server running on port 3000');
+    console.log('Server is running on port 3000');
 });
