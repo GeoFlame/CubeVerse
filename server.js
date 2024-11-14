@@ -8,7 +8,7 @@ const io = socketIo(server);
 
 let players = {};
 let bullets = [];
-const BULLET_SPEED = 8; // Faster bullet speed for visibility
+const BULLET_SPEED = 8;
 const PLAYER_HEALTH = 100;
 const PLAYER_SIZE = 30;
 
@@ -47,6 +47,7 @@ setInterval(() => {
 io.on('connection', (socket) => {
     console.log(`Player connected: ${socket.id}`);
 
+    // Assign a player
     players[socket.id] = {
         x: Math.random() * 800,
         y: Math.random() * 600,
@@ -55,6 +56,7 @@ io.on('connection', (socket) => {
         health: PLAYER_HEALTH
     };
 
+    // Update player movement
     socket.on('playerMovement', (data) => {
         const player = players[socket.id];
         if (player) {
@@ -67,11 +69,13 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Shoot bullet
     socket.on('shootBullet', (data) => {
         const angle = Math.atan2(data.y - players[socket.id].y, data.x - players[socket.id].x);
         bullets.push({ x: data.x, y: data.y, angle, size: 5 });
     });
 
+    // Disconnect event
     socket.on('disconnect', () => {
         delete players[socket.id];
         console.log(`Player disconnected: ${socket.id}`);
