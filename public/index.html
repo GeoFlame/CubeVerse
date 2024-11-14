@@ -17,15 +17,13 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // Player setup
         const player = { x: 100, y: 100, size: 30, color: 'green', health: 100, rotation: 0 };
         const players = {}; // Other players
-        const bullets = []; // Bullets array
+        const bullets = []; // Bullets array (from server)
         const speed = 3;
         let velocityX = 0, velocityY = 0;
         const keysPressed = { w: false, a: false, s: false, d: false };
 
-        // Update movement based on keys
         function updateVelocity() {
             velocityX = 0; velocityY = 0;
             if (keysPressed['w']) velocityY -= speed;
@@ -34,21 +32,7 @@
             if (keysPressed['d']) velocityX += speed;
         }
 
-        // Shooting function
-        function shootBullet() {
-            const angle = player.rotation;
-            bullets.push({ x: player.x, y: player.y, angle, speed: 5, size: 5 });
-            socket.emit('shootBullet', { x: player.x, y: player.y, angle });
-        }
-
-        // Random spawn location
-        function randomSpawn() {
-            player.x = Math.random() * (canvas.width - player.size);
-            player.y = Math.random() * (canvas.height - player.size);
-        }
-        randomSpawn();
-
-        // Player facing mouse
+        // Rotation to face mouse
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
@@ -56,30 +40,33 @@
             player.rotation = Math.atan2(mouseY - player.y, mouseX - player.x);
         });
 
-        // Key controls
+        // Movement controls
         window.addEventListener('keydown', (e) => { if (e.key in keysPressed) { keysPressed[e.key] = true; updateVelocity(); } });
         window.addEventListener('keyup', (e) => { if (e.key in keysPressed) { keysPressed[e.key] = false; updateVelocity(); } });
-        window.addEventListener('click', shootBullet);
 
-        // Collision with walls
-        function handleWallCollision() {
-            if (player.x < 0) player.x = 0;
-            if (player.y < 0) player.y = 0;
-            if (player.x + player.size > canvas.width) player.x = canvas.width - player.size;
-            if (player.y + player.size > canvas.height) player.y = canvas.height - player.size;
+        // Fire bullet
+        window.addEventListener('click', () => {
+            socket.emit('shootBullet', { x: player.x, y: player.y, angle: player.rotation });
+        });
+
+        function randomSpawn() {
+            player.x = Math.random() * (canvas.width - player.size);
+            player.y = Math.random() * (canvas.height - player.size);
         }
+        randomSpawn();
+
+        // Send movement data to the server
+        function movePlayer() {
+            socket.emit('playerMovement', { velocityX, velocityY, rotation: player.rotation });
+        }
+
+        setInterval(movePlayer, 16);
 
         // Render game loop
         function render() {
-            player.x += velocityX;
-            player.y += velocityY;
-            handleWallCollision();
-
-            // Send updated position to server
-            socket.emit('playerMovement', { x: player.x, y: player.y, rotation: player.rotation });
-
-            // Clear and draw player
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw player
             ctx.save();
             ctx.translate(player.x + player.size / 2, player.y + player.size / 2);
             ctx.rotate(player.rotation);
@@ -93,40 +80,39 @@
             ctx.fillStyle = 'green';
             ctx.fillRect(player.x, player.y - 10, player.size * (player.health / 100), 5);
 
+            // Draw other players
+            for (const id in players) {
+                const p = players[id];
+                ctx.save();
+                ctx.translate(p.x + p.size / 2, p.y + p.size / 2);
+                ctx.rotate(p.rotation);
+                ctx.fillStyle = p.color;
+                ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+                ctx.restore();
+
+                // Draw health bar
+                ctx.fillStyle = 'red';
+                ctx.fillRect(p.x, p.y - 10, p.size, 5);
+                ctx.fillStyle = 'green';
+                ctx.fillRect(p.x, p.y - 10, p.size * (p.health / 100), 5);
+            }
+
             // Draw bullets
             bullets.forEach(bullet => {
-                bullet.x += bullet.speed * Math.cos(bullet.angle);
-                bullet.y += bullet.speed * Math.sin(bullet.angle);
                 ctx.fillStyle = 'black';
                 ctx.fillRect(bullet.x, bullet.y, bullet.size, bullet.size);
             });
 
-            // Update other players
-            for (const id in players) {
-                const p = players[id];
-                if (p.health > 0) {
-                    ctx.save();
-                    ctx.translate(p.x + p.size / 2, p.y + p.size / 2);
-                    ctx.rotate(p.rotation);
-                    ctx.fillStyle = p.color;
-                    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
-                    ctx.restore();
-                    ctx.fillStyle = 'red';
-                    ctx.fillRect(p.x, p.y - 10, p.size, 5);
-                    ctx.fillStyle = 'green';
-                    ctx.fillRect(p.x, p.y - 10, p.size * (p.health / 100), 5);
-                }
-            }
             requestAnimationFrame(render);
         }
 
-        // Sync with server
-        socket.on('currentPlayers', (data) => { Object.assign(players, data); });
-        socket.on('newPlayer', (data) => { players[data.id] = data; });
-        socket.on('playerMoved', (data) => { if (players[data.id]) { players[data.id].x = data.x; players[data.id].y = data.y; players[data.id].rotation = data.rotation; } });
-        socket.on('playerHealth', (data) => { if (players[data.id]) { players[data.id].health = data.health; } });
-        socket.on('removePlayer', (id) => { delete players[id]; });
-        socket.on('bulletFired', (bulletData) => { bullets.push(bulletData); });
+        // Update game state from the server
+        socket.on('updateGameState', (data) => {
+            Object.assign(players, data.players);
+            player.health = data.player.health;
+            bullets.length = 0;
+            bullets.push(...data.bullets);
+        });
 
         render();
     </script>
