@@ -67,6 +67,17 @@ io.on('connection', (socket) => {
     });
 });
 
+// Admin kicks a player by name
+socket.on('kickPlayer', (data) => {
+    const playerToKick = Object.values(players).find(player => player.name === data.targetName);
+    if (playerToKick) {
+        io.to(playerToKick.id).emit('kicked');
+        delete players[playerToKick.id];
+        io.emit('removePlayer', playerToKick.id);
+    }
+});
+
+
 server.listen(3000, () => {
     console.log('listening on *:3000');
 });
