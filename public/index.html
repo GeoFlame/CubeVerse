@@ -19,7 +19,7 @@
     </style>
 </head>
 <body>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <canvas id="gameCanvas" width="600" height="400"></canvas>
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
@@ -31,10 +31,10 @@
         const players = {}; // Other players data
 
         // Movement variables
-        const speed = 3; // Adjust speed for smoothness
+        const speed = 5; // Adjust speed for smoothness
         let velocityX = 0;
         let velocityY = 0;
-        const keysPressed = { w: false, a: false, s: false, d: false };
+        const keysPressed = { w: false, a: false, s: false, d: false, 'ArrowLeft': false, 'ArrowUp': false, 'ArrowDown': false, 'ArrowRight': false };
 
         // Update velocity based on keys pressed
         function updateVelocity() {
@@ -44,6 +44,10 @@
             if (keysPressed['s']) velocityY += speed;
             if (keysPressed['a']) velocityX -= speed;
             if (keysPressed['d']) velocityX += speed;
+            if (keysPressed['ArrowUp']) velocityY -= speed;
+            if (keysPressed['ArrowRight']) velocityY += speed;
+            if (keysPressed['ArrowLeft']) velocityX -= speed;
+            if (keysPressed['ArrowDown']) velocityX += speed;
         }
 
         // Handle keydown and keyup for smoother diagonal movement
@@ -66,6 +70,8 @@
             // Update position with smooth interpolation
             player.x += velocityX;
             player.y += velocityY;
+            player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
+            player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
 
             // Send updated position to server
             socket.emit('playerMovement', { x: player.x, y: player.y });
