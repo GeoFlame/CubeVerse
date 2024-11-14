@@ -84,9 +84,12 @@
             // Draw other players
             for (const id in players) {
                 const p = players[id];
-                ctx.fillStyle = p.color;
-                ctx.fillRect(p.x, p.y, p.size, p.size);
+                if (id !== socket.id) { // Don't render your own player (green)
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(p.x, p.y, p.size, p.size);
+                }
             }
+
 
             requestAnimationFrame(render);
         }
