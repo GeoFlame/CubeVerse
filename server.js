@@ -1,14 +1,22 @@
 // Server-side code (Node.js with Express + Socket.io)
-
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
 let players = {}; // Store players info
+
+// Serve static files (for CSS, JS, images, etc.)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Serve index.html when accessing the root path
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html')); // Adjust if index.html is inside a 'public' folder
+});
 
 io.on('connection', (socket) => {
     console.log('a user connected');
