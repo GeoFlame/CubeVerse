@@ -1,33 +1,32 @@
 // Server-side code (Node.js with Express + Socket.io)
+
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-let players = {}; // Store players info
+let players = {};
 
-// Serve static files (for CSS, JS, images, etc.)
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Serve index.html when accessing the root path
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html')); // Adjust if index.html is inside a 'public' folder
-});
+app.use(express.static('public'));
 
 io.on('connection', (socket) => {
     console.log('a user connected');
     players[socket.id] = { id: socket.id, name: '', x: 100, y: 100, color: 'green', lastActive: Date.now() };
 
+    // Send current players to the new player
+    io.to(socket.id).emit('currentPlayers', players);
+
+    // New player joined
     socket.on('joinGame', (data) => {
         players[socket.id].name = data.name;
         players[socket.id].color = data.color;
         io.emit('newPlayer', { id: socket.id, x: players[socket.id].x, y: players[socket.id].y, color: data.color, name: data.name });
     });
 
+    // Player movement
     socket.on('playerMovement', (data) => {
         players[socket.id].x = data.x;
         players[socket.id].y = data.y;
@@ -35,10 +34,12 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('playerMoved', { id: socket.id, x: data.x, y: data.y });
     });
 
+    // Chat message
     socket.on('chatMessage', (message) => {
         io.emit('chatMessage', `${players[socket.id].name}: ${message}`);
     });
 
+    // Kick player manually
     socket.on('kickPlayer', (data) => {
         const playerToKick = Object.values(players).find(player => player.name === data.id);
         if (playerToKick) {
