@@ -31,7 +31,7 @@
         const players = {}; // Other players data
 
         // Movement variables
-        const speed = 5;
+        const speed = 3;
         let velocityX = 0;
         let velocityY = 0;
         const keysPressed = { w: false, a: false, s: false, d: false };
@@ -61,6 +61,25 @@
             }
         });
 
+        // Collision detection and sliding
+        function checkCollisionAndSlide(player1, player2) {
+            const distX = player1.x - player2.x;
+            const distY = player1.y - player2.y;
+            const distance = Math.sqrt(distX * distX + distY * distY);
+
+            if (distance < player1.size) {
+                const overlap = player1.size - distance;
+
+                // Calculate the slide direction
+                const slideX = (distX / distance) * overlap;
+                const slideY = (distY / distance) * overlap;
+
+                // Move player1 back along the slide direction
+                player1.x += slideX;
+                player1.y += slideY;
+            }
+        }
+
         // Render function for the game loop
         function render() {
             // Update position with smooth interpolation
@@ -75,16 +94,15 @@
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.size, player.size);
 
-            // Draw other players with interpolation
+            // Draw other players and check for collisions
             for (const id in players) {
                 const p = players[id];
                 if (id !== socket.id) { // Don't render your own player (green)
-                    // Interpolate position towards target position
-                    p.x += (p.targetX - p.x) * 0.1; // Adjust the 0.1 for smoother/faster interpolation
-                    p.y += (p.targetY - p.y) * 0.1;
-
                     ctx.fillStyle = p.color;
                     ctx.fillRect(p.x, p.y, p.size, p.size);
+
+                    // Check for collisions and slide
+                    checkCollisionAndSlide(player, p);
                 }
             }
 
@@ -95,21 +113,16 @@
         socket.on('currentPlayers', (data) => {
             // Merge the current players with the new ones
             Object.assign(players, data);
-            for (const id in players) {
-                players[id].targetX = players[id].x;
-                players[id].targetY = players[id].y;
-            }
         });
 
         socket.on('newPlayer', (data) => {
-            players[data.id] = { x: data.x, y: data.y, targetX: data.x, targetY: data.y, size: 30, color: 'blue' }; // Add new player
+            players[data.id] = { x: data.x, y: data.y, size: 30, color: 'blue' }; // Add new player
         });
 
         socket.on('playerMoved', (data) => {
             if (players[data.id]) {
-                // Set target positions instead of immediate positions
-                players[data.id].targetX = data.x;
-                players[data.id].targetY = data.y;
+                players[data.id].x = data.x;
+                players[data.id].y = data.y;
             }
         });
 
