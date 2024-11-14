@@ -5,132 +5,129 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CubeVerse</title>
     <style>
-        body {
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background: #f5f5f5;
-        }
-        canvas {
-            border: 1px solid black;
-        }
+        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f5f5f5; }
+        canvas { border: 1px solid black; }
     </style>
 </head>
 <body>
-    <canvas id="gameCanvas" width="600" height="400"></canvas>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // Local player data
-        let player = { x: 100, y: 100, size: 30, color: 'green' };
-        const players = {}; // Other players data
-
-        // Movement variables
+        // Player setup
+        const player = { x: 100, y: 100, size: 30, color: 'green', health: 100, rotation: 0 };
+        const players = {}; // Other players
+        const bullets = []; // Bullets array
         const speed = 3;
-        let velocityX = 0;
-        let velocityY = 0;
+        let velocityX = 0, velocityY = 0;
         const keysPressed = { w: false, a: false, s: false, d: false };
 
-        // Update velocity based on keys pressed
+        // Update movement based on keys
         function updateVelocity() {
-            velocityX = 0;
-            velocityY = 0;
+            velocityX = 0; velocityY = 0;
             if (keysPressed['w']) velocityY -= speed;
             if (keysPressed['s']) velocityY += speed;
             if (keysPressed['a']) velocityX -= speed;
             if (keysPressed['d']) velocityX += speed;
         }
 
-        // Handle keydown and keyup for smoother diagonal movement
-        window.addEventListener('keydown', (e) => {
-            if (e.key in keysPressed) {
-                keysPressed[e.key] = true;
-                updateVelocity();
-            }
-        });
-
-        window.addEventListener('keyup', (e) => {
-            if (e.key in keysPressed) {
-                keysPressed[e.key] = false;
-                updateVelocity();
-            }
-        });
-
-        // Collision detection and sliding
-        function checkCollisionAndSlide(player1, player2) {
-            const distX = player1.x - player2.x;
-            const distY = player1.y - player2.y;
-            const distance = Math.sqrt(distX * distX + distY * distY);
-
-            if (distance < player1.size) {
-                const overlap = player1.size - distance;
-
-                // Calculate the slide direction
-                const slideX = (distX / distance) * overlap;
-                const slideY = (distY / distance) * overlap;
-
-                // Move player1 back along the slide direction
-                player1.x += slideX;
-                player1.y += slideY;
-            }
+        // Shooting function
+        function shootBullet() {
+            const angle = player.rotation;
+            bullets.push({ x: player.x, y: player.y, angle, speed: 5, size: 5 });
+            socket.emit('shootBullet', { x: player.x, y: player.y, angle });
         }
 
-        // Render function for the game loop
+        // Random spawn location
+        function randomSpawn() {
+            player.x = Math.random() * (canvas.width - player.size);
+            player.y = Math.random() * (canvas.height - player.size);
+        }
+        randomSpawn();
+
+        // Player facing mouse
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            player.rotation = Math.atan2(mouseY - player.y, mouseX - player.x);
+        });
+
+        // Key controls
+        window.addEventListener('keydown', (e) => { if (e.key in keysPressed) { keysPressed[e.key] = true; updateVelocity(); } });
+        window.addEventListener('keyup', (e) => { if (e.key in keysPressed) { keysPressed[e.key] = false; updateVelocity(); } });
+        window.addEventListener('click', shootBullet);
+
+        // Collision with walls
+        function handleWallCollision() {
+            if (player.x < 0) player.x = 0;
+            if (player.y < 0) player.y = 0;
+            if (player.x + player.size > canvas.width) player.x = canvas.width - player.size;
+            if (player.y + player.size > canvas.height) player.y = canvas.height - player.size;
+        }
+
+        // Render game loop
         function render() {
-            // Update position with smooth interpolation
             player.x += velocityX;
             player.y += velocityY;
+            handleWallCollision();
 
             // Send updated position to server
-            socket.emit('playerMovement', { x: player.x, y: player.y });
+            socket.emit('playerMovement', { x: player.x, y: player.y, rotation: player.rotation });
 
-            // Clear canvas and draw the local player
+            // Clear and draw player
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(player.x + player.size / 2, player.y + player.size / 2);
+            ctx.rotate(player.rotation);
             ctx.fillStyle = player.color;
-            ctx.fillRect(player.x, player.y, player.size, player.size);
+            ctx.fillRect(-player.size / 2, -player.size / 2, player.size, player.size);
+            ctx.restore();
 
-            // Draw other players and check for collisions
+            // Draw health bar
+            ctx.fillStyle = 'red';
+            ctx.fillRect(player.x, player.y - 10, player.size, 5);
+            ctx.fillStyle = 'green';
+            ctx.fillRect(player.x, player.y - 10, player.size * (player.health / 100), 5);
+
+            // Draw bullets
+            bullets.forEach(bullet => {
+                bullet.x += bullet.speed * Math.cos(bullet.angle);
+                bullet.y += bullet.speed * Math.sin(bullet.angle);
+                ctx.fillStyle = 'black';
+                ctx.fillRect(bullet.x, bullet.y, bullet.size, bullet.size);
+            });
+
+            // Update other players
             for (const id in players) {
                 const p = players[id];
-                if (id !== socket.id) { // Don't render your own player (green)
+                if (p.health > 0) {
+                    ctx.save();
+                    ctx.translate(p.x + p.size / 2, p.y + p.size / 2);
+                    ctx.rotate(p.rotation);
                     ctx.fillStyle = p.color;
-                    ctx.fillRect(p.x, p.y, p.size, p.size);
-
-                    // Check for collisions and slide
-                    checkCollisionAndSlide(player, p);
+                    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+                    ctx.restore();
+                    ctx.fillStyle = 'red';
+                    ctx.fillRect(p.x, p.y - 10, p.size, 5);
+                    ctx.fillStyle = 'green';
+                    ctx.fillRect(p.x, p.y - 10, p.size * (p.health / 100), 5);
                 }
             }
-
             requestAnimationFrame(render);
         }
 
-        // Sync with server data
-        socket.on('currentPlayers', (data) => {
-            // Merge the current players with the new ones
-            Object.assign(players, data);
-        });
+        // Sync with server
+        socket.on('currentPlayers', (data) => { Object.assign(players, data); });
+        socket.on('newPlayer', (data) => { players[data.id] = data; });
+        socket.on('playerMoved', (data) => { if (players[data.id]) { players[data.id].x = data.x; players[data.id].y = data.y; players[data.id].rotation = data.rotation; } });
+        socket.on('playerHealth', (data) => { if (players[data.id]) { players[data.id].health = data.health; } });
+        socket.on('removePlayer', (id) => { delete players[id]; });
+        socket.on('bulletFired', (bulletData) => { bullets.push(bulletData); });
 
-        socket.on('newPlayer', (data) => {
-            players[data.id] = { x: data.x, y: data.y, size: 30, color: 'blue' }; // Add new player
-        });
-
-        socket.on('playerMoved', (data) => {
-            if (players[data.id]) {
-                players[data.id].x = data.x;
-                players[data.id].y = data.y;
-            }
-        });
-
-        socket.on('removePlayer', (id) => {
-            delete players[id]; // Remove disconnected player
-        });
-
-        // Initialize rendering loop
         render();
     </script>
 </body>
