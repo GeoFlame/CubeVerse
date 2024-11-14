@@ -5,8 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CubeVerse</title>
     <style>
-        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f5f5f5; }
-        canvas { border: 1px solid black; }
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #f5f5f5;
+        }
+        canvas {
+            border: 1px solid black;
+        }
     </style>
 </head>
 <body>
@@ -17,112 +26,88 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        const player = { x: 100, y: 100, size: 30, color: 'green', health: 100 };
-        const players = {}; // Other players
-        const bullets = [];
-        const speed = 2; // Reduced speed for normal movement
-        let velocityX = 0, velocityY = 0;
-        let slidingVelocityX = 0, slidingVelocityY = 0;
-        const friction = 0.9; // Adjusted friction for smoother movement
+        // Local player data
+        let player = { x: 100, y: 100, size: 30, color: 'green' };
+        const players = {}; // Other players data
+
+        // Movement variables
+        const speed = 3; // Adjust speed for smoothness
+        let velocityX = 0;
+        let velocityY = 0;
         const keysPressed = { w: false, a: false, s: false, d: false };
 
+        // Update velocity based on keys pressed
         function updateVelocity() {
-            let targetVelocityX = 0;
-            let targetVelocityY = 0;
-            if (keysPressed['w']) targetVelocityY -= speed;
-            if (keysPressed['s']) targetVelocityY += speed;
-            if (keysPressed['a']) targetVelocityX -= speed;
-            if (keysPressed['d']) targetVelocityX += speed;
-
-            velocityX = targetVelocityX;
-            velocityY = targetVelocityY;
+            velocityX = 0;
+            velocityY = 0;
+            if (keysPressed['w']) velocityY -= speed;
+            if (keysPressed['s']) velocityY += speed;
+            if (keysPressed['a']) velocityX -= speed;
+            if (keysPressed['d']) velocityX += speed;
         }
 
-        // Apply friction for sliding effect
-        function applySliding() {
-            slidingVelocityX += velocityX;
-            slidingVelocityY += velocityY;
-            slidingVelocityX *= friction;
-            slidingVelocityY *= friction;
-            player.x += slidingVelocityX;
-            player.y += slidingVelocityY;
-        }
-
-        // Movement controls
-        window.addEventListener('keydown', (e) => { if (e.key in keysPressed) { keysPressed[e.key] = true; updateVelocity(); } });
-        window.addEventListener('keyup', (e) => { if (e.key in keysPressed) { keysPressed[e.key] = false; updateVelocity(); } });
-
-        // Fire bullet
-        window.addEventListener('click', () => {
-            const mouseX = event.clientX - canvas.offsetLeft;
-            const mouseY = event.clientY - canvas.offsetTop;
-            socket.emit('shootBullet', { x: player.x, y: player.y, mouseX, mouseY });
+        // Handle keydown and keyup for smoother diagonal movement
+        window.addEventListener('keydown', (e) => {
+            if (e.key in keysPressed) {
+                keysPressed[e.key] = true;
+                updateVelocity();
+            }
         });
 
-        // Random spawn position for player
-        function randomSpawn() {
-            player.x = Math.random() * (canvas.width - player.size);
-            player.y = Math.random() * (canvas.height - player.size);
-        }
-        randomSpawn();
+        window.addEventListener('keyup', (e) => {
+            if (e.key in keysPressed) {
+                keysPressed[e.key] = false;
+                updateVelocity();
+            }
+        });
 
-        // Send movement data to the server
-        function movePlayer() {
-            socket.emit('playerMovement', { x: player.x, y: player.y });
-        }
-
-        setInterval(movePlayer, 16);
-
-        // Render game loop
+        // Render function for the game loop
         function render() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Update position with smooth interpolation
+            player.x += velocityX;
+            player.y += velocityY;
 
-            // Draw player
+            // Send updated position to server
+            socket.emit('playerMovement', { x: player.x, y: player.y });
+
+            // Clear canvas and draw the local player
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.size, player.size);
-
-            // Draw health bar for player
-            ctx.fillStyle = 'red';
-            ctx.fillRect(player.x, player.y - 10, player.size, 5);
-            ctx.fillStyle = 'green';
-            ctx.fillRect(player.x, player.y - 10, player.size * (player.health / 100), 5);
 
             // Draw other players
             for (const id in players) {
                 const p = players[id];
-                if (id === socket.id) continue; // Skip self player
                 ctx.fillStyle = p.color;
                 ctx.fillRect(p.x, p.y, p.size, p.size);
-
-                // Draw health bar
-                ctx.fillStyle = 'red';
-                ctx.fillRect(p.x, p.y - 10, p.size, 5);
-                ctx.fillStyle = 'green';
-                ctx.fillRect(p.x, p.y - 10, p.size * (p.health / 100), 5);
             }
-
-            // Draw bullets
-            bullets.forEach(bullet => {
-                ctx.fillStyle = 'black';
-                ctx.fillRect(bullet.x, bullet.y, bullet.size, bullet.size);
-            });
 
             requestAnimationFrame(render);
         }
 
-        // Update game state from the server
-        socket.on('updateGameState', (data) => {
-            Object.assign(players, data.players);
-            player.health = data.player.health;
-            bullets.length = 0;
-            bullets.push(...data.bullets);
+        // Sync with server data
+        socket.on('currentPlayers', (data) => {
+            // Merge the current players with the new ones
+            Object.assign(players, data);
         });
 
-        function gameLoop() {
-            applySliding();
-            render();
-        }
-        setInterval(gameLoop, 16);
+        socket.on('newPlayer', (data) => {
+            players[data.id] = { x: data.x, y: data.y, size: 30, color: 'blue' }; // Add new player
+        });
+
+        socket.on('playerMoved', (data) => {
+            if (players[data.id]) {
+                players[data.id].x = data.x;
+                players[data.id].y = data.y;
+            }
+        });
+
+        socket.on('removePlayer', (id) => {
+            delete players[id]; // Remove disconnected player
+        });
+
+        // Initialize rendering loop
+        render();
     </script>
 </body>
 </html>
