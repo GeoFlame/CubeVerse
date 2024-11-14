@@ -8,7 +8,7 @@ const io = socketIo(server);
 
 let players = {};
 let bullets = [];
-const BULLET_SPEED = 5;
+const BULLET_SPEED = 8; // Faster bullet speed for visibility
 const PLAYER_HEALTH = 100;
 const PLAYER_SIZE = 30;
 
@@ -52,16 +52,14 @@ io.on('connection', (socket) => {
         y: Math.random() * 600,
         size: PLAYER_SIZE,
         color: 'blue',
-        health: PLAYER_HEALTH,
-        rotation: 0
+        health: PLAYER_HEALTH
     };
 
     socket.on('playerMovement', (data) => {
         const player = players[socket.id];
         if (player) {
-            player.x += data.velocityX;
-            player.y += data.velocityY;
-            player.rotation = data.rotation;
+            player.x = data.x;
+            player.y = data.y;
             if (player.x < 0) player.x = 0;
             if (player.y < 0) player.y = 0;
             if (player.x + player.size > 800) player.x = 800 - player.size;
@@ -70,7 +68,8 @@ io.on('connection', (socket) => {
     });
 
     socket.on('shootBullet', (data) => {
-        bullets.push({ x: data.x, y: data.y, angle: data.angle, size: 5 });
+        const angle = Math.atan2(data.y - players[socket.id].y, data.x - players[socket.id].x);
+        bullets.push({ x: data.x, y: data.y, angle, size: 5 });
     });
 
     socket.on('disconnect', () => {
