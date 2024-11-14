@@ -20,10 +20,10 @@
         const player = { x: 100, y: 100, size: 30, color: 'green', health: 100 };
         const players = {}; // Other players
         const bullets = [];
-        const speed = 4; // Slower speed for control
+        const speed = 2; // Reduced speed for normal movement
         let velocityX = 0, velocityY = 0;
         let slidingVelocityX = 0, slidingVelocityY = 0;
-        const friction = 0.98; // Less sliding friction for smooth but slower sliding
+        const friction = 0.9; // Adjusted friction for smoother movement
         const keysPressed = { w: false, a: false, s: false, d: false };
 
         function updateVelocity() {
@@ -54,7 +54,9 @@
 
         // Fire bullet
         window.addEventListener('click', () => {
-            socket.emit('shootBullet', { x: player.x, y: player.y });
+            const mouseX = event.clientX - canvas.offsetLeft;
+            const mouseY = event.clientY - canvas.offsetTop;
+            socket.emit('shootBullet', { x: player.x, y: player.y, mouseX, mouseY });
         });
 
         // Random spawn position for player
