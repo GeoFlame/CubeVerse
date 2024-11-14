@@ -34,15 +34,30 @@
 
         #chatBox {
             position: absolute;
-            bottom: 20px;
+            bottom: 70px;  /* Adjusted position to give some space */
             left: 20px;
-            width: 200px;
+            width: 250px;  /* Slightly wider */
             height: 150px;
-            overflow-y: scroll;
+            overflow-y: auto;
             background: rgba(0, 0, 0, 0.5);
             color: white;
             padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            box-sizing: border-box;
         }
+        
+        #chatInput {
+            position: absolute;
+            bottom: 20px;  /* Adjusted position to make space */
+            left: 20px;
+            width: 250px;  /* Make input same width as chat box */
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+
 
         #kickMessage {
             position: absolute;
