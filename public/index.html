@@ -161,7 +161,7 @@
             requestAnimationFrame(render);
 
             // Check for AFK kick (2 minutes of no movement)
-            if (Date.now() - lastMovementTime > 120000) { // 2 minutes in ms
+            if (Date.now() - lastMovementTime > 30000) { // 2 minutes in ms
                 socket.emit('kickPlayer', { id: player.name });
                 kickMessage.style.display = 'block'; // Show the kick message
                 gameStarted = false; // Stop the game loop
