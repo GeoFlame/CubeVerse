@@ -6,34 +6,33 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-let players = {}; // Store players
+let players = {};
+let bullets = [];
 
-app.use(express.static('public')); // Serve the static files (like HTML, JS, CSS)
+app.use(express.static('public'));
 
 io.on('connection', (socket) => {
     console.log(`Player connected: ${socket.id}`);
     
-    // Initialize new player with random position
-    players[socket.id] = { x: Math.random() * 600, y: Math.random() * 400, size: 30, color: 'blue' };
-
-    // Send current player list to the new player
+    players[socket.id] = { x: Math.random() * 800, y: Math.random() * 600, size: 30, color: 'blue', health: 100, rotation: 0 };
     socket.emit('currentPlayers', players);
+    socket.broadcast.emit('newPlayer', players[socket.id]);
 
-    // Notify other players about the new player
-    socket.broadcast.emit('newPlayer', { id: socket.id, x: players[socket.id].x, y: players[socket.id].y });
-
-    // Handle player movement
-    socket.on('playerMovement', (movementData) => {
+    socket.on('playerMovement', (data) => {
         if (players[socket.id]) {
-            players[socket.id].x = movementData.x;
-            players[socket.id].y = movementData.y;
-            io.emit('playerMoved', { id: socket.id, x: players[socket.id].x, y: players[socket.id].y });
+            players[socket.id].x = data.x;
+            players[socket.id].y = data.y;
+            players[socket.id].rotation = data.rotation;
+            io.emit('playerMoved', { id: socket.id, x: data.x, y: data.y, rotation: data.rotation });
         }
     });
 
-    // Handle disconnection
+    socket.on('shootBullet', (data) => {
+        bullets.push({ x: data.x, y: data.y, angle: data.angle, speed: 5, size: 5 });
+        io.emit('bulletFired', { x: data.x, y: data.y, angle: data.angle, speed: 5, size: 5 });
+    });
+
     socket.on('disconnect', () => {
-        console.log(`Player disconnected: ${socket.id}`);
         delete players[socket.id];
         io.emit('removePlayer', socket.id);
     });
